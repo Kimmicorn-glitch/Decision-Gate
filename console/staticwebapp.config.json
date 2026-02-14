@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {
+      "route": "/audit",
+      "serve": "/audit"
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/api/*", "/*.css", "/*.js", "/*.png", "/*.svg", "/*.ico"]
+  },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  }
+}

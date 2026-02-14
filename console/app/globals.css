@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #020617;
+  color: #dbe8ff;
+  font-family: Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(30, 64, 175, 0.2), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.2), transparent 40%);
+}
+
+.grid-overlay {
+  position: relative;
+  isolation: isolate;
+}
+
+.grid-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: drift-grid 22s linear infinite;
+  z-index: -1;
+}
+
+@keyframes drift-grid {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 40px 22px, 40px 22px;
+  }
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
