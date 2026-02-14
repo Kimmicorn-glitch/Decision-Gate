@@ -1,0 +1,28 @@
+policies:
+  - id: "POL-PRIV-001"
+    severity: "critical"
+    field: "description"
+    condition: "contains"
+    value: "elevated permissions"
+    message: "Elevated permissions in production require security approval workflow."
+
+  - id: "POL-RISK-001"
+    severity: "high"
+    field: "execution.detected_risks"
+    condition: "equals"
+    value: "privilege_escalation"
+    message: "Privilege escalation signal detected during execution simulation."
+
+  - id: "POL-DEPLOY-001"
+    severity: "medium"
+    field: "description"
+    condition: "contains"
+    value: "production"
+    message: "Production deployments must include rollback and approval metadata."
+
+  - id: "POL-RISK-002"
+    severity: "high"
+    field: "risk_level"
+    condition: "equals"
+    value: "high"
+    message: "High risk requests require revision and explicit mitigations."

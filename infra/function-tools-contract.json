@@ -1,0 +1,23 @@
+{
+  "function": "azure-function-preflight",
+  "request": {
+    "action_type": "deploy",
+    "description": "Deploy service X to production with elevated permissions.",
+    "metadata": {
+      "service": "service-x",
+      "environment": "production"
+    },
+    "trace_id": "<trace-id>"
+  },
+  "response": {
+    "feasible": true,
+    "preflight_checks": [
+      "cluster_capacity_ok",
+      "artifact_signature_valid"
+    ],
+    "risks": [
+      "privilege_escalation"
+    ],
+    "trace_id": "<trace-id>"
+  }
+}

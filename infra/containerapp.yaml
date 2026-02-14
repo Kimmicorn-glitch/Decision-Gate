@@ -1,0 +1,35 @@
+apiVersion: 2022-03-01
+location: eastus
+name: agent-decision-gate
+properties:
+  managedEnvironmentId: /subscriptions/<SUB_ID>/resourceGroups/<RG>/providers/Microsoft.App/managedEnvironments/<ENV>
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8080
+    registries:
+      - server: <ACR_NAME>.azurecr.io
+        username: <ACR_USER>
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: <ACR_PASSWORD>
+      - name: mcp-base-url
+        value: https://<FUNCTION_APP>.azurewebsites.net
+  template:
+    containers:
+      - image: <ACR_NAME>.azurecr.io/agent-decision-gate:latest
+        name: decision-gate
+        env:
+          - name: BIND_ADDR
+            value: 0.0.0.0:8080
+          - name: MCP_BASE_URL
+            secretRef: mcp-base-url
+          - name: MCP_LOGGING_PATH
+            value: /api/mcp/log-decision
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+    scale:
+      minReplicas: 2
+      maxReplicas: 10
