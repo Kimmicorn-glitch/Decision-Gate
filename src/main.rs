@@ -11,12 +11,14 @@ use std::{net::SocketAddr, sync::Arc};
 
 use agents::{CriticAgent, ExecutionAgent, GovernanceAgent, PlannerAgent};
 use api::{
-    AppState, AuditListResponse, CosmosStateStore, DecisionEngine, FoundryModelRouter,
-    InMemoryStateStore, ProposedActionRequest, StateStore,
+    AdminError, AdminService, AppState, AuditListResponse, ChangePasswordRequest, CosmosStateStore,
+    DecisionEngine, FoundryModelRouter, InMemoryStateStore, LoginRequest, ProposedActionRequest,
+    RegisterRequest, ResetPasswordConfirmRequest, ResetPasswordRequest, StateStore,
+    UpdateSettingsRequest,
 };
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, options, post},
     Json, Router,
@@ -62,8 +64,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         mcp_adapter,
         model_router,
     ));
+    let admin = Arc::new(AdminService::default());
 
-    let app_state = AppState { engine };
+    let app_state = AppState { engine, admin };
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -72,8 +75,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/proposed-action", post(handle_proposed_action))
         .route("/proposed-action", options(handle_preflight))
+        .route("/validate-action", post(handle_proposed_action))
+        .route("/validate-action", options(handle_preflight))
         .route("/audit", get(handle_audit_log))
         .route("/audit", options(handle_preflight))
+        .route("/auth/login", post(handle_login))
+        .route("/auth/login", options(handle_preflight))
+        .route("/auth/register", post(handle_register))
+        .route("/auth/register", options(handle_preflight))
+        .route("/auth/change-password", post(handle_change_password))
+        .route("/auth/change-password", options(handle_preflight))
+        .route("/auth/reset-password/request", post(handle_reset_password_request))
+        .route("/auth/reset-password/request", options(handle_preflight))
+        .route("/auth/reset-password/confirm", post(handle_reset_password_confirm))
+        .route("/auth/reset-password/confirm", options(handle_preflight))
+        .route("/admin/tenants", get(handle_list_tenants))
+        .route("/admin/tenants", options(handle_preflight))
+        .route("/admin/settings", get(handle_get_default_settings))
+        .route("/admin/settings", post(handle_update_default_settings))
+        .route("/admin/settings", options(handle_preflight))
+        .route("/admin/settings/:tenant_id", get(handle_get_settings))
+        .route("/admin/settings/:tenant_id", post(handle_update_settings))
+        .route("/admin/settings/:tenant_id", options(handle_preflight))
         .with_state(app_state)
         .layer(TraceLayer::new_for_http())
         .layer(cors);
@@ -103,6 +126,184 @@ async fn handle_audit_log(State(state): State<AppState>) -> impl IntoResponse {
     Json(AuditListResponse { data })
 }
 
+async fn handle_login(
+    State(state): State<AppState>,
+    Json(payload): Json<LoginRequest>,
+) -> impl IntoResponse {
+    match state.admin.login(&payload) {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+        Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
+        Err(AdminError::Unauthorized) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(AdminError::Forbidden) => StatusCode::FORBIDDEN.into_response(),
+        Err(AdminError::State) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn handle_register(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<RegisterRequest>,
+) -> impl IntoResponse {
+    let actor = bearer_token(&headers)
+        .as_deref()
+        .and_then(|token| state.admin.authorize(token).ok());
+
+    match state.admin.register(&payload, actor.as_ref()) {
+        Ok(user) => (StatusCode::OK, Json(user)).into_response(),
+        Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
+        Err(AdminError::Unauthorized) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(AdminError::Forbidden) => StatusCode::FORBIDDEN.into_response(),
+        Err(AdminError::State) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn handle_change_password(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> impl IntoResponse {
+    let Some(token) = bearer_token(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    let Ok(auth) = state.admin.authorize(&token) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    match state.admin.change_password(&auth, &payload) {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
+        Err(AdminError::Unauthorized) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(AdminError::Forbidden) => StatusCode::FORBIDDEN.into_response(),
+        Err(AdminError::State) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn handle_reset_password_request(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ResetPasswordRequest>,
+) -> impl IntoResponse {
+    let Some(token) = bearer_token(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    let Ok(auth) = state.admin.authorize(&token) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    if !auth.is_admin() {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    match state.admin.issue_password_reset(&payload.username) {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+        Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
+        Err(AdminError::Unauthorized) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(AdminError::Forbidden) => StatusCode::FORBIDDEN.into_response(),
+        Err(AdminError::State) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn handle_reset_password_confirm(
+    State(state): State<AppState>,
+    Json(payload): Json<ResetPasswordConfirmRequest>,
+) -> impl IntoResponse {
+    match state.admin.confirm_password_reset(&payload) {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
+        Err(AdminError::Unauthorized) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(AdminError::Forbidden) => StatusCode::FORBIDDEN.into_response(),
+        Err(AdminError::State) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn handle_list_tenants(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let token = bearer_token(&headers);
+    if let Some(token) = token {
+        if state.admin.authorize(&token).is_ok() {
+            return match state.admin.list_tenants() {
+                Ok(tenants) => (StatusCode::OK, Json(tenants)).into_response(),
+                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            };
+        }
+    }
+    StatusCode::UNAUTHORIZED.into_response()
+}
+
+async fn handle_get_default_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    handle_get_settings(State(state), headers, Path("default".to_string())).await
+}
+
+async fn handle_update_default_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateSettingsRequest>,
+) -> impl IntoResponse {
+    handle_update_settings(
+        State(state),
+        headers,
+        Path("default".to_string()),
+        Json(payload),
+    )
+    .await
+}
+
+async fn handle_get_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(tenant_id): Path<String>,
+) -> impl IntoResponse {
+    let token = bearer_token(&headers);
+    if let Some(token) = token {
+        if state.admin.authorize(&token).is_ok() {
+            return match state.admin.get_settings_for_tenant(&tenant_id) {
+                Ok(settings) => (StatusCode::OK, Json(settings)).into_response(),
+                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            };
+        }
+    }
+    StatusCode::UNAUTHORIZED.into_response()
+}
+
+async fn handle_update_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(tenant_id): Path<String>,
+    Json(payload): Json<UpdateSettingsRequest>,
+) -> impl IntoResponse {
+    let Some(token) = bearer_token(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    let Ok(auth) = state.admin.authorize(&token) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    if !auth.can_write_settings() {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    match state.admin.update_settings_for_tenant(&tenant_id, payload) {
+        Ok(settings) => (StatusCode::OK, Json(settings)).into_response(),
+        Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
+        Err(AdminError::Unauthorized) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(AdminError::Forbidden) => StatusCode::FORBIDDEN.into_response(),
+        Err(AdminError::State) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
 async fn handle_preflight() -> impl IntoResponse {
     StatusCode::NO_CONTENT
+}
+
+fn bearer_token(headers: &HeaderMap) -> Option<String> {
+    let raw = headers.get("authorization")?.to_str().ok()?;
+    raw.strip_prefix("Bearer ").map(|s| s.to_string())
 }

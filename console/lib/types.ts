@@ -41,3 +41,74 @@ export interface AuditRecord {
 export interface AuditListResponse {
   data: AuditRecord[];
 }
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  password: string;
+  role: "admin" | "operator" | "viewer";
+}
+
+export interface LoginResponse {
+  token: string;
+  expires_at: string;
+  username: string;
+  role: "admin" | "operator" | "viewer";
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface ResetPasswordRequest {
+  username: string;
+}
+
+export interface ResetPasswordIssueResponse {
+  reset_token: string;
+  expires_at: string;
+}
+
+export interface DevOpsGatewaySettings {
+  endpoint: string;
+  pre_merge_policy_simulation: boolean;
+  pipeline_provider: string;
+}
+
+export interface EnterpriseGatewaySettings {
+  tenant: string;
+  audit_export_sink: string;
+  responsible_ai_logs_enabled: boolean;
+}
+
+export interface DataCenterGatewaySettings {
+  regions: string[];
+  ai_browser_providers: string[];
+  background_enforcement: boolean;
+  block_high_risk: boolean;
+  block_cross_region: boolean;
+  monthly_cost_cap_usd: number;
+}
+
+export interface TenantSettings {
+  tenant_id: string;
+  devops: DevOpsGatewaySettings;
+  enterprise: EnterpriseGatewaySettings;
+  datacenter: DataCenterGatewaySettings;
+  updated_at: string;
+}
+
+export interface UpdateSettingsRequest {
+  devops: DevOpsGatewaySettings;
+  enterprise: EnterpriseGatewaySettings;
+  datacenter: DataCenterGatewaySettings;
+}
+
+export interface TenantsResponse {
+  tenants: string[];
+}

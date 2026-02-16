@@ -1,5 +1,5 @@
 import ModeConsolePage from "@/components/ModeConsolePage";
 
-export default function HomePage() {
+export default function DevOpsPage() {
   return <ModeConsolePage mode="DEVOPS" />;
 }
