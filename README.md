@@ -1,113 +1,143 @@
 # Agent Decision Gate
 
-Enterprise AI control plane that enforces a decision checkpoint between a proposed AI action and execution in Azure.
+Agent Decision Gate is an AI governance gateway and monitoring dashboard.
+It sits between agent output (Copilot, autonomous bots, IDE/devops automations) and execution, then decides whether to `APPROVE`, `REVISE`, or `BLOCK`.
 
-## Run Guide
+## What The Application Does
 
-For a dedicated local runbook, see `RUNNING.md`.
+- Accepts proposed AI actions through an API.
+- Runs a multi-stage decision pipeline (planner, execution analysis, governance policy checks, critic).
+- Produces a decision with reasoning, policy violations, confidence, and risk scores.
+- Tracks integrations (Copilot, agent gateways, enterprise tools) and shows monitoring metrics.
+- Captures audit records for traceability.
+- Supports Sentry telemetry and runtime resource alerting (CPU/memory thresholds).
 
-## Project Structure
+## Core Features
 
-- `agents/`: Multi-agent implementations (`PlannerAgent`, `ExecutionAgent`, `GovernanceAgent`, `CriticAgent`) and agent traits.
-- `mcp/`: MCP adapter interface and Azure MCP client.
-- `governance/`: Config-driven policy evaluation engine.
-- `api/`: API models, orchestration engine, state store abstraction, observability bootstrap.
-- `infra/`: Azure deployment manifests and integration contracts.
-- `config/`: Policy rules and Foundry model router mappings.
-- `src/main.rs`: REST entrypoint (`POST /proposed-action`).
+- Decision gate for risky AI actions (`/proposed-action`)
+- Audit log (`/audit`)
+- Integration registry (`/monitor/integrations`)
+- Monitoring overview (`/monitor/overview`)
+- Admin auth + tenant settings (`/auth/*`, `/admin/*`)
+- Bot dashboard in UI (`/bots`)
 
-## API
+## Architecture
 
-`POST /proposed-action`
+### Backend (Rust)
 
-```json
-{
-  "action_type": "deploy",
-  "description": "Deploy service X to production with elevated permissions.",
-  "metadata": {
-    "service": "service-x",
-    "environment": "production"
-  },
-  "risk_level": "high"
-}
-```
+- Framework: `axum` + `tokio`
+- Entry point: `src/main.rs`
+- Domain modules:
+  - `agents/` multi-agent stages
+  - `governance/` policy engine
+  - `api/` handlers, models, monitoring, auth/admin settings
+  - `mcp/` MCP adapters for tool integrations
+- Persistence:
+  - Local encrypted tenant settings file
+  - Local admin users file (argon2 password hashes)
+  - Optional Cosmos integration hooks
 
-`GET /audit`
+### Frontend (Next.js)
 
-Returns audit summaries for UI consumption:
+- Framework: Next.js App Router (`console/`)
+- Primary pages:
+  - `/` decision console
+  - `/login` admin login
+  - `/settings` tenant + integration controls
+  - `/bots` bot/integration tracking dashboard
+  - `/audit` audit viewer
+- Frontend API client: `console/lib/api.ts`
 
-```json
-{
-  "data": [
-    {
-      "audit_id": "uuid",
-      "timestamp": "2026-02-14T18:00:00Z",
-      "decision": "BLOCK",
-      "action_type": "deploy",
-      "confidence_score": 0.2
-    }
-  ]
-}
-```
+## How It Was Built
 
-Response schema:
+This project is implemented as a policy-first control plane:
 
-```json
-{
-  "decision": "BLOCK",
-  "reasoning": "BLOCK action 'deploy' evaluated with 2 risk findings and 3 policy violations",
-  "policy_violations": [
-    {
-      "policy_id": "POL-PRIV-001",
-      "severity": "critical",
-      "message": "Elevated permissions in production require security approval workflow."
-    }
-  ],
-  "confidence_score": 0.2,
-  "audit_id": "uuid",
-  "trace_id": "uuid"
-}
-```
+1. Externalized policies in `config/policies.yaml` instead of hardcoding rule logic in handlers.
+2. Layered decision pipeline to separate planning, execution analysis, governance checks, and final critique.
+3. Monitoring model added on top of decisions so every integration has operational visibility.
+4. Tenant/admin settings modeled separately from action flow to support enterprise controls.
+5. UI built as an operator console for real-time decisions, auditability, and integration management.
+6. Observability added with Sentry hooks and runtime metric thresholds for safety operations.
 
-## Agent Pipeline
+## Security And Login
 
-1. `PlannerAgent`: Converts request into structured tasks.
-2. `ExecutionAgent`: Simulates technical feasibility and risks.
-3. `GovernanceAgent`: Applies external policy configuration.
-4. `CriticAgent`: Challenges assumptions and recommends final risk posture.
-5. Decision aggregation: deterministic merge to `APPROVE | REVISE | BLOCK`.
+There is no exposed default password in the UI/docs.
+Admin login is controlled by environment variables:
 
-## Model Router (Foundry-Compatible)
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
 
-`config/model-router.yaml` maps decision stages to models. The service uses this mapping at runtime and records selected models in audit records.
+On startup, if these are set, the backend upserts that admin user (useful for rotating credentials or fixing stale local hashes).
 
-## Governance Policies
+## Quick Start
 
-Policies are externalized in `config/policies.yaml`. No policy is hard-coded in the decision gate logic.
-
-## MCP + Azure Functions Integration
-
-- MCP adapter: `mcp/adapter.rs`
-- Tool call contract: `infra/function-tools-contract.json`
-- Decision logs include trace IDs and policy outcomes for auditable replay.
-
-## Azure Deployment
-
-See `infra/deployment.md` and `infra/containerapp.yaml`.
-
-## Run Locally
+From repo root:
 
 ```bash
+export ADMIN_USERNAME='your_admin_user'
+export ADMIN_PASSWORD='your_strong_password'
 cargo run
 ```
 
+In another terminal:
+
 ```bash
-curl -sS -X POST http://localhost:8080/proposed-action \
-  -H 'content-type: application/json' \
-  -d '{
-    "action_type":"deploy",
-    "description":"Deploy service X to production with elevated permissions.",
-    "metadata":{"service":"service-x","environment":"production"},
-    "risk_level":"high"
-  }' | jq
+cd console
+npm install
+npm run dev
 ```
+
+Open:
+
+- Console: `http://localhost:3000`
+- Login: `http://localhost:3000/login`
+- API: `http://localhost:8080`
+
+## Key API Endpoints
+
+- `POST /proposed-action`
+- `GET /audit`
+- `GET /monitor/overview`
+- `POST /monitor/integrations`
+- `GET /monitor/integrations`
+- `POST /auth/login`
+- `GET /admin/tenants`
+- `GET/POST /admin/settings/:tenant_id`
+
+## Connect Copilot / Agents
+
+1. Login as admin in `/login`.
+2. Go to `/settings` and configure `Agent Link Settings`:
+   - Active + Connected
+   - Integration name (for example `vscode-copilot` or `clawbot`)
+   - Agent ID and autonomous flag
+   - GitHub repo and Azure MCP endpoint
+3. Save settings.
+4. Confirm integration appears in `/bots` and `/monitor/integrations`.
+5. Submit actions with integration metadata so monitoring attributes decisions correctly.
+
+## Sentry And Runtime Monitoring
+
+Set these environment variables on backend:
+
+- `SENTRY_DSN`
+- `SENTRY_ENVIRONMENT` (optional, default `development`)
+- `SENTRY_TRACES_SAMPLE_RATE` (optional)
+- `RUNTIME_MONITOR_INTERVAL_SECS` (optional)
+- `SENTRY_CPU_ALERT_THRESHOLD` (optional)
+- `SENTRY_MEMORY_ALERT_MB` (optional)
+
+## Project Structure
+
+- `src/main.rs` API bootstrap + routes
+- `api/` admin/auth/settings/monitoring/engine wiring
+- `agents/` decision stages
+- `governance/` policy evaluation
+- `mcp/` integration adapter contracts
+- `config/` policies + model router
+- `console/` Next.js operator dashboard
+- `infra/` deployment manifests/docs
+
+## Additional Runbook
+
+For a step-by-step local run guide, see `RUNNING.md`.

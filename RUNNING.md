@@ -24,6 +24,9 @@ Backend defaults:
 - Base URL: `http://localhost:8080`
 - Decision endpoint: `POST /proposed-action`
 - Audit endpoint: `GET /audit`
+- Monitor endpoint: `GET /monitor/overview`
+- Integration register endpoint: `POST /monitor/integrations`
+- Integration list endpoint: `GET /monitor/integrations`
 
 Optional backend environment variables:
 
@@ -31,6 +34,24 @@ Optional backend environment variables:
 - `MCP_BASE_URL` (default `http://localhost:7071`)
 - `MCP_LOGGING_PATH` (default `/api/mcp/log-decision`)
 - `COSMOS_ENDPOINT`, `COSMOS_DATABASE`, `COSMOS_CONTAINER`, `COSMOS_KEY` (if using Cosmos DB)
+- `SENTRY_DSN` (enables Sentry monitoring for decision/patch workflows)
+- `SENTRY_ENVIRONMENT` (default `development`)
+- `SENTRY_TRACES_SAMPLE_RATE` (default `0.2`)
+- `RUNTIME_MONITOR_INTERVAL_SECS` (default `15`)
+- `SENTRY_CPU_ALERT_THRESHOLD` (default `85`)
+- `SENTRY_MEMORY_ALERT_MB` (default `2048`)
+- `ADMIN_USERNAME` (required for bootstrap or credential override)
+- `ADMIN_PASSWORD` (required for bootstrap or credential override)
+
+Set secure admin credentials before starting backend:
+
+```bash
+export ADMIN_USERNAME='your_admin_user'
+export ADMIN_PASSWORD='your_strong_password'
+cargo run
+```
+
+If login fails due to an older local user hash, set these env vars and restart. The backend will upsert the configured admin account.
 
 ## 2. Start the Frontend Console
 

@@ -43,11 +43,42 @@ pub struct DataCenterGatewaySettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConnectionSettings {
+    pub active: bool,
+    pub connected: bool,
+    pub integration_name: String,
+    pub agent_id: String,
+    pub autonomous: bool,
+    pub github_repo: String,
+    pub github_copilot_enabled: bool,
+    pub azure_mcp_endpoint: String,
+    pub azure_mcp_connected: bool,
+}
+
+impl Default for AgentConnectionSettings {
+    fn default() -> Self {
+        Self {
+            active: false,
+            connected: false,
+            integration_name: "clawbot".to_string(),
+            agent_id: "agent-main".to_string(),
+            autonomous: true,
+            github_repo: "owner/repo".to_string(),
+            github_copilot_enabled: true,
+            azure_mcp_endpoint: "https://<func-app>.azurewebsites.net/api/mcp".to_string(),
+            azure_mcp_connected: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TenantSettings {
     pub tenant_id: String,
     pub devops: DevOpsGatewaySettings,
     pub enterprise: EnterpriseGatewaySettings,
     pub datacenter: DataCenterGatewaySettings,
+    #[serde(default)]
+    pub agent_connection: AgentConnectionSettings,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -67,12 +98,16 @@ impl TenantSettings {
             },
             datacenter: DataCenterGatewaySettings {
                 regions: vec!["eastus".to_string(), "eu-west".to_string()],
-                ai_browser_providers: vec!["browser-use".to_string(), "openai-operator".to_string()],
+                ai_browser_providers: vec![
+                    "browser-use".to_string(),
+                    "openai-operator".to_string(),
+                ],
                 background_enforcement: true,
                 block_high_risk: true,
                 block_cross_region: true,
                 monthly_cost_cap_usd: 5000.0,
             },
+            agent_connection: AgentConnectionSettings::default(),
             updated_at: Utc::now(),
         }
     }
@@ -104,6 +139,8 @@ pub struct UpdateSettingsRequest {
     pub devops: DevOpsGatewaySettings,
     pub enterprise: EnterpriseGatewaySettings,
     pub datacenter: DataCenterGatewaySettings,
+    #[serde(default)]
+    pub agent_connection: AgentConnectionSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,7 +234,8 @@ pub struct AdminService {
 impl Default for AdminService {
     fn default() -> Self {
         let users_path = PathBuf::from(
-            std::env::var("ADMIN_USERS_FILE").unwrap_or_else(|_| "data/admin_users.json".to_string()),
+            std::env::var("ADMIN_USERS_FILE")
+                .unwrap_or_else(|_| "data/admin_users.json".to_string()),
         );
         let tenants_path = PathBuf::from(
             std::env::var("TENANT_SETTINGS_FILE")
@@ -207,7 +245,7 @@ impl Default for AdminService {
         ensure_parent_dir(&users_path);
         ensure_parent_dir(&tenants_path);
 
-        let users = load_users(&users_path).unwrap_or_else(default_users);
+        let users = bootstrap_users(load_users(&users_path));
         let encryption_key = resolve_encryption_key();
         let tenant_settings =
             load_tenants_encrypted(&tenants_path, &encryption_key).unwrap_or_else(default_tenants);
@@ -239,7 +277,9 @@ impl AdminService {
 
         let mut users = self.users.lock().map_err(|_| AdminError::State)?;
         if users.contains_key(&request.username) {
-            return Err(AdminError::Validation("username already exists".to_string()));
+            return Err(AdminError::Validation(
+                "username already exists".to_string(),
+            ));
         }
 
         let is_bootstrap = users.is_empty();
@@ -352,6 +392,7 @@ impl AdminService {
             devops: request.devops,
             enterprise: request.enterprise,
             datacenter: request.datacenter,
+            agent_connection: request.agent_connection,
             updated_at: Utc::now(),
         };
         settings.insert(tenant_id.to_string(), updated.clone());
@@ -440,10 +481,14 @@ impl AdminService {
 
 fn validate_tenant_settings(request: &UpdateSettingsRequest) -> Result<(), AdminError> {
     if request.devops.endpoint.trim().is_empty() {
-        return Err(AdminError::Validation("devops.endpoint must not be empty".to_string()));
+        return Err(AdminError::Validation(
+            "devops.endpoint must not be empty".to_string(),
+        ));
     }
     if request.enterprise.tenant.trim().is_empty() {
-        return Err(AdminError::Validation("enterprise.tenant must not be empty".to_string()));
+        return Err(AdminError::Validation(
+            "enterprise.tenant must not be empty".to_string(),
+        ));
     }
     if request.datacenter.regions.is_empty() {
         return Err(AdminError::Validation(
@@ -453,6 +498,17 @@ fn validate_tenant_settings(request: &UpdateSettingsRequest) -> Result<(), Admin
     if request.datacenter.monthly_cost_cap_usd <= 0.0 {
         return Err(AdminError::Validation(
             "datacenter.monthly_cost_cap_usd must be > 0".to_string(),
+        ));
+    }
+    if request.agent_connection.active && request.agent_connection.integration_name.trim().is_empty()
+    {
+        return Err(AdminError::Validation(
+            "agent_connection.integration_name must not be empty when active".to_string(),
+        ));
+    }
+    if request.agent_connection.connected && request.agent_connection.agent_id.trim().is_empty() {
+        return Err(AdminError::Validation(
+            "agent_connection.agent_id must not be empty when connected".to_string(),
         ));
     }
     Ok(())
@@ -529,25 +585,41 @@ fn ensure_parent_dir(path: &Path) {
 
 fn default_users() -> HashMap<String, UserRecord> {
     let mut users = HashMap::new();
-    let default_password =
-        std::env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "ChangeMe#2026!".to_string());
-    if let Ok(hash) = hash_password(&default_password) {
-        users.insert(
-            "admin".to_string(),
-            UserRecord {
-                username: "admin".to_string(),
-                password_hash: hash,
-                role: ROLE_ADMIN.to_string(),
-                created_at: Utc::now(),
-            },
-        );
+    if let Some(record) = env_admin_user(Utc::now()) {
+        users.insert(record.username.clone(), record);
     }
     users
 }
 
+fn bootstrap_users(existing: Option<HashMap<String, UserRecord>>) -> HashMap<String, UserRecord> {
+    let mut users = existing.unwrap_or_else(default_users);
+    if let Some(admin_record) = env_admin_user(Utc::now()) {
+        users.insert(admin_record.username.clone(), admin_record);
+    }
+    users
+}
+
+fn env_admin_user(created_at: DateTime<Utc>) -> Option<UserRecord> {
+    let username = std::env::var("ADMIN_USERNAME").ok()?;
+    let password = std::env::var("ADMIN_PASSWORD").ok()?;
+    if validate_username(&username).is_err() || validate_password(&password).is_err() {
+        return None;
+    }
+    let password_hash = hash_password(&password).ok()?;
+    Some(UserRecord {
+        username,
+        password_hash,
+        role: ROLE_ADMIN.to_string(),
+        created_at,
+    })
+}
+
 fn default_tenants() -> HashMap<String, TenantSettings> {
     let mut map = HashMap::new();
-    map.insert("default".to_string(), TenantSettings::default_for("default"));
+    map.insert(
+        "default".to_string(),
+        TenantSettings::default_for("default"),
+    );
     map
 }
 
@@ -594,7 +666,11 @@ fn load_tenants_encrypted(path: &Path, key: &[u8; 32]) -> Option<HashMap<String,
     serde_json::from_str(&raw).ok()
 }
 
-fn persist_tenants_encrypted(path: &Path, tenants: &HashMap<String, TenantSettings>, key: &[u8; 32]) {
+fn persist_tenants_encrypted(
+    path: &Path,
+    tenants: &HashMap<String, TenantSettings>,
+    key: &[u8; 32],
+) {
     let Ok(plaintext) = serde_json::to_vec_pretty(tenants) else {
         return;
     };
