@@ -79,8 +79,19 @@ pub struct DecisionResponse {
     pub reasoning: String,
     pub policy_violations: Vec<PolicyViolation>,
     pub confidence_score: f32,
+    pub risk_assessment: RiskAssessment,
     pub audit_id: Uuid,
     pub trace_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskAssessment {
+    pub overall_risk_score: f32,
+    pub prompt_injection_risk_score: f32,
+    pub output_safety_risk_score: f32,
+    pub token_waste_risk_score: f32,
+    pub estimated_tokens: usize,
+    pub signals: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,4 +128,88 @@ pub struct AuditListItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditListResponse {
     pub data: Vec<AuditListItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionCounts {
+    pub total: usize,
+    pub approve: usize,
+    pub revise: usize,
+    pub block: usize,
+    pub patch_actions: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskOverview {
+    pub prompt_injection_flagged: usize,
+    pub output_safety_flagged: usize,
+    pub token_waste_flagged: usize,
+    pub high_risk_total: usize,
+    pub avg_estimated_tokens: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationSummary {
+    pub integration: String,
+    pub integration_type: String,
+    pub autonomous: bool,
+    pub status: String,
+    pub request_count: usize,
+    pub blocked_count: usize,
+    pub last_seen: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationRegistrationRequest {
+    pub integration: String,
+    pub integration_type: String,
+    pub autonomous: bool,
+    pub environment: String,
+    pub owner: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationRegistration {
+    pub integration: String,
+    pub integration_type: String,
+    pub autonomous: bool,
+    pub environment: String,
+    pub owner: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationRegistryResponse {
+    pub data: Vec<IntegrationRegistration>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeMetrics {
+    pub cpu_usage_percent: f32,
+    pub memory_usage_mb: u64,
+    pub process_count: usize,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentRiskEvent {
+    pub audit_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub action_type: String,
+    pub decision: Decision,
+    pub overall_risk_score: f32,
+    pub integration: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitorOverviewResponse {
+    pub generated_at: DateTime<Utc>,
+    pub decisions: DecisionCounts,
+    pub risks: RiskOverview,
+    pub integrations: Vec<IntegrationSummary>,
+    pub recent_high_risk_events: Vec<RecentRiskEvent>,
+    pub runtime_metrics: Option<RuntimeMetrics>,
 }

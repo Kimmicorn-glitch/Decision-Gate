@@ -34,6 +34,12 @@ Set App Service / Container App environment variables for OpenTelemetry exporter
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
 - `OTEL_SERVICE_NAME=agent-decision-gate`
 - `RUST_LOG=info`
+- `SENTRY_DSN`
+- `SENTRY_ENVIRONMENT` (for example `production`)
+- `SENTRY_TRACES_SAMPLE_RATE` (for example `0.2`)
+- `RUNTIME_MONITOR_INTERVAL_SECS` (for example `15`)
+- `SENTRY_CPU_ALERT_THRESHOLD` (for example `85`)
+- `SENTRY_MEMORY_ALERT_MB` (for example `2048`)
 
 Connect to Azure Monitor via OpenTelemetry exporter and enable distributed tracing in Azure Monitor Application Insights.
 

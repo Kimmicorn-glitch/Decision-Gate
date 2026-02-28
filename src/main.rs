@@ -11,10 +11,11 @@ use std::{net::SocketAddr, sync::Arc};
 
 use agents::{CriticAgent, ExecutionAgent, GovernanceAgent, PlannerAgent};
 use api::{
-    AdminError, AdminService, AppState, AuditListResponse, ChangePasswordRequest, CosmosStateStore,
-    DecisionEngine, FoundryModelRouter, InMemoryStateStore, LoginRequest, ProposedActionRequest,
-    RegisterRequest, ResetPasswordConfirmRequest, ResetPasswordRequest, StateStore,
-    UpdateSettingsRequest,
+    capture_runtime_pressure, AdminError, AdminService, AppState, AuditListResponse,
+    ChangePasswordRequest, CosmosStateStore, DecisionEngine, FoundryModelRouter,
+    InMemoryStateStore, IntegrationRegistrationRequest, IntegrationRegistryResponse, LoginRequest,
+    MonitorRegistry, ProposedActionRequest, RegisterRequest, ResetPasswordConfirmRequest,
+    ResetPasswordRequest, RuntimeMetrics, StateStore, UpdateSettingsRequest,
 };
 use axum::{
     extract::{Path, State},
@@ -23,8 +24,10 @@ use axum::{
     routing::{get, options, post},
     Json, Router,
 };
+use chrono::Utc;
 use governance::PolicyEngine;
 use mcp::AzureMcpAdapter;
+use sysinfo::System;
 use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
@@ -33,7 +36,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    api::init_observability()?;
+    let _observability = api::init_observability()?;
 
     let policy_engine = PolicyEngine::from_yaml_file("config/policies.yaml")?;
     let model_router = FoundryModelRouter::from_yaml_file("config/model-router.yaml")?;
@@ -55,18 +58,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Arc::new(InMemoryStateStore::default()),
     };
 
+    let admin = Arc::new(AdminService::default());
+    let monitor = Arc::new(MonitorRegistry::default());
+
     let engine = Arc::new(DecisionEngine::new(
         Arc::new(PlannerAgent::default()),
         Arc::new(ExecutionAgent::default()),
         Arc::new(GovernanceAgent::new(policy_engine.clone())),
         Arc::new(CriticAgent::default()),
         state_store,
+        monitor.clone(),
         mcp_adapter,
         model_router,
     ));
-    let admin = Arc::new(AdminService::default());
+    let app_state = AppState {
+        engine,
+        admin,
+        monitor,
+    };
+    let monitor_for_runtime = app_state.monitor.clone();
+    tokio::spawn(async move {
+        let interval_secs = std::env::var("RUNTIME_MONITOR_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(15);
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+        let mut system = System::new_all();
 
-    let app_state = AppState { engine, admin };
+        loop {
+            ticker.tick().await;
+            system.refresh_cpu_usage();
+            system.refresh_memory();
+
+            let cpu_usage_percent = system.global_cpu_info().cpu_usage();
+            let memory_usage_mb = system.used_memory() / (1024 * 1024);
+            let process_count = system.processes().len();
+
+            monitor_for_runtime
+                .update_runtime_metrics(RuntimeMetrics {
+                    cpu_usage_percent,
+                    memory_usage_mb,
+                    process_count,
+                    updated_at: Utc::now(),
+                })
+                .await;
+
+            capture_runtime_pressure(cpu_usage_percent, memory_usage_mb, process_count);
+        }
+    });
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -79,15 +119,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/validate-action", options(handle_preflight))
         .route("/audit", get(handle_audit_log))
         .route("/audit", options(handle_preflight))
+        .route("/monitor/overview", get(handle_monitor_overview))
+        .route("/monitor/overview", options(handle_preflight))
+        .route("/monitor/integrations", post(handle_register_integration))
+        .route("/monitor/integrations", get(handle_list_integrations))
+        .route("/monitor/integrations", options(handle_preflight))
         .route("/auth/login", post(handle_login))
         .route("/auth/login", options(handle_preflight))
         .route("/auth/register", post(handle_register))
         .route("/auth/register", options(handle_preflight))
         .route("/auth/change-password", post(handle_change_password))
         .route("/auth/change-password", options(handle_preflight))
-        .route("/auth/reset-password/request", post(handle_reset_password_request))
+        .route(
+            "/auth/reset-password/request",
+            post(handle_reset_password_request),
+        )
         .route("/auth/reset-password/request", options(handle_preflight))
-        .route("/auth/reset-password/confirm", post(handle_reset_password_confirm))
+        .route(
+            "/auth/reset-password/confirm",
+            post(handle_reset_password_confirm),
+        )
         .route("/auth/reset-password/confirm", options(handle_preflight))
         .route("/admin/tenants", get(handle_list_tenants))
         .route("/admin/tenants", options(handle_preflight))
@@ -124,6 +175,26 @@ async fn handle_proposed_action(
 async fn handle_audit_log(State(state): State<AppState>) -> impl IntoResponse {
     let data = state.engine.list_audits().await;
     Json(AuditListResponse { data })
+}
+
+async fn handle_monitor_overview(State(state): State<AppState>) -> impl IntoResponse {
+    let data = state.engine.monitor_overview().await;
+    Json(data)
+}
+
+async fn handle_register_integration(
+    State(state): State<AppState>,
+    Json(payload): Json<IntegrationRegistrationRequest>,
+) -> impl IntoResponse {
+    match state.monitor.register(payload).await {
+        Some(record) => (StatusCode::OK, Json(record)).into_response(),
+        None => (StatusCode::BAD_REQUEST, "integration is required").into_response(),
+    }
+}
+
+async fn handle_list_integrations(State(state): State<AppState>) -> impl IntoResponse {
+    let data = state.monitor.list().await;
+    Json(IntegrationRegistryResponse { data })
 }
 
 async fn handle_login(
