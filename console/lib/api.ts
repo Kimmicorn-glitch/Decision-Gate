@@ -1,9 +1,13 @@
-import { mockAuditRecords } from "@/lib/mock";
+import { mockAuditRecords, mockMonitorOverview } from "@/lib/mock";
 import {
   AuditRecord,
   AuditListResponse,
   ChangePasswordRequest,
   DecisionResponse,
+  IntegrationRegistration,
+  IntegrationRegistrationRequest,
+  IntegrationRegistryResponse,
+  MonitorOverviewResponse,
   LoginRequest,
   LoginResponse,
   ProposedActionPayload,
@@ -69,6 +73,69 @@ export async function fetchAuditLog(): Promise<AuditRecord[]> {
   } catch {
     return mockAuditRecords;
   }
+}
+
+export async function fetchMonitorOverview(): Promise<MonitorOverviewResponse> {
+  try {
+    const baseUrl = resolveApiBaseUrl();
+    const response = await fetch(`${baseUrl}/monitor/overview`, {
+      method: "GET",
+      headers: {
+        "content-type": "application/json"
+      },
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Monitor API failed with status ${response.status}`);
+    }
+
+    return (await response.json()) as MonitorOverviewResponse;
+  } catch {
+    return mockMonitorOverview;
+  }
+}
+
+export async function registerIntegration(
+  payload: IntegrationRegistrationRequest
+): Promise<IntegrationRegistration> {
+  const baseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${baseUrl}/monitor/integrations`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Integration registration failed (${response.status}).`);
+  }
+
+  return (await response.json()) as IntegrationRegistration;
+}
+
+export async function fetchRegisteredIntegrations(): Promise<IntegrationRegistration[]> {
+  const baseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${baseUrl}/monitor/integrations`, {
+    method: "GET",
+    headers: {
+      "content-type": "application/json"
+    },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Integration list failed (${response.status}).`);
+  }
+
+  const parsed = (await response.json()) as
+    | IntegrationRegistryResponse
+    | IntegrationRegistration[];
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+  return parsed.data;
 }
 
 export async function loginAdmin(payload: LoginRequest): Promise<LoginResponse> {

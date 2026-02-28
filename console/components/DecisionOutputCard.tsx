@@ -108,6 +108,19 @@ export default function DecisionOutputCard({ result }: DecisionOutputCardProps) 
             </div>
           </div>
 
+          {result.risk_assessment && (
+            <div>
+              <p className="mb-1 text-xs uppercase tracking-[0.12em] text-slate-300">Risk Assessment</p>
+              <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3 text-xs text-slate-200">
+                <p>Overall Risk: {Math.round(result.risk_assessment.overall_risk_score * 100)}%</p>
+                <p>Prompt Injection Risk: {Math.round(result.risk_assessment.prompt_injection_risk_score * 100)}%</p>
+                <p>Output Safety Risk: {Math.round(result.risk_assessment.output_safety_risk_score * 100)}%</p>
+                <p>Token Waste Risk: {Math.round(result.risk_assessment.token_waste_risk_score * 100)}%</p>
+                <p>Estimated Tokens: {result.risk_assessment.estimated_tokens}</p>
+              </div>
+            </div>
+          )}
+
           <div>
             <button
               type="button"

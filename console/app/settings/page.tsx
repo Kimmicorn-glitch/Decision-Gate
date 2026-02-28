@@ -9,6 +9,7 @@ import {
   changePassword,
   fetchSettings,
   listTenants,
+  registerIntegration,
   registerAdmin,
   requestPasswordReset,
   updateSettings
@@ -47,6 +48,15 @@ export default function SettingsPage() {
   const [blockHighRisk, setBlockHighRisk] = useState(true);
   const [blockCrossRegion, setBlockCrossRegion] = useState(true);
   const [costCap, setCostCap] = useState("5000");
+  const [agentActive, setAgentActive] = useState(false);
+  const [agentConnected, setAgentConnected] = useState(false);
+  const [integrationName, setIntegrationName] = useState("clawbot");
+  const [agentId, setAgentId] = useState("agent-main");
+  const [agentAutonomous, setAgentAutonomous] = useState(true);
+  const [githubRepo, setGithubRepo] = useState("owner/repo");
+  const [githubCopilotEnabled, setGithubCopilotEnabled] = useState(true);
+  const [azureMcpEndpoint, setAzureMcpEndpoint] = useState("");
+  const [azureMcpConnected, setAzureMcpConnected] = useState(false);
 
   const [newUser, setNewUser] = useState("");
   const [newPass, setNewPass] = useState("");
@@ -105,6 +115,15 @@ export default function SettingsPage() {
         setBlockHighRisk(settings.datacenter.block_high_risk);
         setBlockCrossRegion(settings.datacenter.block_cross_region);
         setCostCap(String(settings.datacenter.monthly_cost_cap_usd));
+        setAgentActive(settings.agent_connection.active);
+        setAgentConnected(settings.agent_connection.connected);
+        setIntegrationName(settings.agent_connection.integration_name);
+        setAgentId(settings.agent_connection.agent_id);
+        setAgentAutonomous(settings.agent_connection.autonomous);
+        setGithubRepo(settings.agent_connection.github_repo);
+        setGithubCopilotEnabled(settings.agent_connection.github_copilot_enabled);
+        setAzureMcpEndpoint(settings.agent_connection.azure_mcp_endpoint);
+        setAzureMcpConnected(settings.agent_connection.azure_mcp_connected);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load settings"));
   }, [token, tenantId]);
@@ -138,8 +157,30 @@ export default function SettingsPage() {
           block_high_risk: blockHighRisk,
           block_cross_region: blockCrossRegion,
           monthly_cost_cap_usd: Number(costCap)
+        },
+        agent_connection: {
+          active: agentActive,
+          connected: agentConnected,
+          integration_name: integrationName.trim(),
+          agent_id: agentId.trim(),
+          autonomous: agentAutonomous,
+          github_repo: githubRepo.trim(),
+          github_copilot_enabled: githubCopilotEnabled,
+          azure_mcp_endpoint: azureMcpEndpoint.trim(),
+          azure_mcp_connected: azureMcpConnected
         }
       });
+
+      if (agentActive && agentConnected && integrationName.trim()) {
+        await registerIntegration({
+          integration: integrationName.trim(),
+          integration_type: "agent",
+          autonomous: agentAutonomous,
+          environment: "prod",
+          owner: username || "settings-user",
+          status: "active"
+        });
+      }
       setNotice("Tenant settings updated.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update settings");
@@ -330,6 +371,74 @@ export default function SettingsPage() {
                 onChange={(e) => setBlockCrossRegion(e.target.checked)}
               />
               Block cross-region execution
+            </label>
+
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">
+              Agent Link Settings
+            </h3>
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={agentActive}
+                onChange={(e) => setAgentActive(e.target.checked)}
+              />
+              Gateway active for linked agent
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={agentConnected}
+                onChange={(e) => setAgentConnected(e.target.checked)}
+              />
+              Agent connection verified
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={agentAutonomous}
+                onChange={(e) => setAgentAutonomous(e.target.checked)}
+              />
+              Agent is autonomous
+            </label>
+            <input
+              value={integrationName}
+              onChange={(e) => setIntegrationName(e.target.value)}
+              placeholder="Integration name (e.g. clawbot)"
+              className="w-full rounded-xl border border-white/15 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+            />
+            <input
+              value={agentId}
+              onChange={(e) => setAgentId(e.target.value)}
+              placeholder="Agent ID"
+              className="w-full rounded-xl border border-white/15 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+            />
+            <input
+              value={githubRepo}
+              onChange={(e) => setGithubRepo(e.target.value)}
+              placeholder="GitHub repo (owner/repo)"
+              className="w-full rounded-xl border border-white/15 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+            />
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={githubCopilotEnabled}
+                onChange={(e) => setGithubCopilotEnabled(e.target.checked)}
+              />
+              GitHub Copilot integration enabled
+            </label>
+            <input
+              value={azureMcpEndpoint}
+              onChange={(e) => setAzureMcpEndpoint(e.target.value)}
+              placeholder="Azure MCP endpoint"
+              className="w-full rounded-xl border border-white/15 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
+            />
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={azureMcpConnected}
+                onChange={(e) => setAzureMcpConnected(e.target.checked)}
+              />
+              Azure MCP connected
             </label>
 
             <button

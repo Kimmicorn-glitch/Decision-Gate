@@ -24,6 +24,8 @@ export default function ModeConsolePage({ mode }: ModeConsolePageProps) {
   const [activeStage, setActiveStage] = useState(-1);
   const [result, setResult] = useState<DecisionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [noticeVariant, setNoticeVariant] = useState<"warning" | "info" | "success">("info");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -57,6 +59,30 @@ export default function ModeConsolePage({ mode }: ModeConsolePageProps) {
       const response = await submitProposedAction(payload);
       stopStageProgress();
       setResult(response);
+
+      const integration = String(payload.metadata.integration ?? "").toLowerCase();
+      const isCopilotIntegration =
+        integration.includes("copilot") || integration.includes("vscode");
+      const risk = response.risk_assessment?.overall_risk_score ?? 0;
+      const hasPolicyViolations = (response.policy_violations?.length ?? 0) > 0;
+
+      if (isCopilotIntegration && (response.decision === "BLOCK" || risk >= 0.65)) {
+        const message = `Copilot task flagged: ${response.decision}. Risk ${Math.round(
+          risk * 100
+        )}%. Review before applying changes.`;
+        setNoticeVariant("warning");
+        setNotice(message);
+        notifyBrowser(message);
+      } else if (isCopilotIntegration && hasPolicyViolations) {
+        const message = `Copilot task requires revision due to policy checks.`;
+        setNoticeVariant("info");
+        setNotice(message);
+        notifyBrowser(message);
+      } else if (isCopilotIntegration) {
+        const message = `Copilot task passed gate checks.`;
+        setNoticeVariant("success");
+        setNotice(message);
+      }
     } catch (err) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -90,7 +116,29 @@ export default function ModeConsolePage({ mode }: ModeConsolePageProps) {
         </section>
 
         {error && <Toast message={error} onDismiss={() => setError(null)} />}
+        {notice && (
+          <Toast
+            message={notice}
+            variant={noticeVariant}
+            onDismiss={() => setNotice(null)}
+          />
+        )}
       </div>
     </main>
   );
+}
+
+function notifyBrowser(message: string) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    new Notification("Decision Gate Alert", { body: message });
+    return;
+  }
+  if (Notification.permission === "default") {
+    void Notification.requestPermission().then((permission) => {
+      if (permission === "granted") {
+        new Notification("Decision Gate Alert", { body: message });
+      }
+    });
+  }
 }
