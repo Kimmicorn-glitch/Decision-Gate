@@ -50,12 +50,27 @@ export default function DecisionOutputCard({ result }: DecisionOutputCardProps) 
   };
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">
-        Final Decision
-      </h2>
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
+            Advisory Window
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-50">
+            Command review outcome
+          </h2>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-xs text-slate-300">
+          Review guidance for operators before bot execution
+        </div>
+      </div>
 
-      {!result && <p className="text-sm text-slate-400">No decision yet.</p>}
+      {!result && (
+        <p className="text-sm leading-7 text-slate-400">
+          No advisory yet. Submit a monitored prompt and command pair to see whether the bot
+          should proceed, pause for review, or be blocked through the enforcement API.
+        </p>
+      )}
 
       {result && (
         <div className="space-y-4 text-sm text-slate-100">
@@ -66,6 +81,19 @@ export default function DecisionOutputCard({ result }: DecisionOutputCardProps) 
             ].join(" ")}
           >
             {result.decision}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+            <p className="mb-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+              Operator Recommendation
+            </p>
+            <p>
+              {result.decision === "BLOCK"
+                ? "Call the linked block endpoint and stop the bot command."
+                : result.decision === "REVISE"
+                  ? "Hold execution and route the command to a human reviewer."
+                  : "Allow execution, but keep the audit trail attached to the bot event."}
+            </p>
           </div>
           <div>
             <p className="mb-1 text-xs uppercase tracking-[0.12em] text-slate-300">Reasoning</p>
@@ -110,12 +138,23 @@ export default function DecisionOutputCard({ result }: DecisionOutputCardProps) 
 
           {result.risk_assessment && (
             <div>
-              <p className="mb-1 text-xs uppercase tracking-[0.12em] text-slate-300">Risk Assessment</p>
+              <p className="mb-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                Threat Signals
+              </p>
               <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3 text-xs text-slate-200">
                 <p>Overall Risk: {Math.round(result.risk_assessment.overall_risk_score * 100)}%</p>
-                <p>Prompt Injection Risk: {Math.round(result.risk_assessment.prompt_injection_risk_score * 100)}%</p>
-                <p>Output Safety Risk: {Math.round(result.risk_assessment.output_safety_risk_score * 100)}%</p>
-                <p>Token Waste Risk: {Math.round(result.risk_assessment.token_waste_risk_score * 100)}%</p>
+                <p>
+                  Prompt Injection Risk:{" "}
+                  {Math.round(result.risk_assessment.prompt_injection_risk_score * 100)}%
+                </p>
+                <p>
+                  Output Safety Risk:{" "}
+                  {Math.round(result.risk_assessment.output_safety_risk_score * 100)}%
+                </p>
+                <p>
+                  Token Waste Risk:{" "}
+                  {Math.round(result.risk_assessment.token_waste_risk_score * 100)}%
+                </p>
                 <p>Estimated Tokens: {result.risk_assessment.estimated_tokens}</p>
               </div>
             </div>

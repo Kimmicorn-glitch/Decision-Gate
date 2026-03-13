@@ -12,9 +12,12 @@ export default function GateVisualization({
   isLoading
 }: GateVisualizationProps) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">
-        Decision Gate Progress
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">
+        Monitoring Pipeline
+      </p>
+      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-50">
+        Prompt-to-command review path
       </h2>
       <div className="flex flex-wrap items-center gap-2 md:gap-3">
         {stages.map((stage, idx) => {
@@ -40,11 +43,11 @@ export default function GateVisualization({
           );
         })}
       </div>
-      <p className="mt-5 text-sm text-slate-300">
+      <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/55 p-4 text-sm text-slate-300">
         {isLoading
-          ? "Evaluating policy and execution constraints..."
-          : "Awaiting proposed action submission."}
-      </p>
+          ? "The advisory engine is inspecting the prompt, command, risks, and policy triggers before deciding whether to block or release the bot action."
+          : "Waiting for a monitored bot prompt. Use this space to review what the agent received and what it plans to do next."}
+      </div>
     </section>
   );
 }

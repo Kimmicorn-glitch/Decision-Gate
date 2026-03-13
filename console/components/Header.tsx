@@ -16,6 +16,7 @@ export default function Header({ publicView = false }: HeaderProps) {
       ]
     : [
         { href: "/console", label: "Console" },
+        { href: "/advisory", label: "Advisory" },
         { href: "/bots", label: "Bots" },
         { href: "/audit", label: "Audit Log" },
         { href: "/settings", label: "Settings" }

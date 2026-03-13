@@ -1,101 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
 import AuthGate from "@/components/AuthGate";
 import { SideNav, TopControlBar } from "@/components/ControlFrame";
-import DecisionOutputCard from "@/components/DecisionOutputCard";
-import GateVisualization from "@/components/GateVisualization";
 import Header from "@/components/Header";
 import ModePanels from "@/components/ModePanels";
-import ProposedActionForm from "@/components/ProposedActionForm";
-import Toast from "@/components/Toast";
-import { submitProposedAction } from "@/lib/api";
 import { ConsoleMode } from "@/lib/controlData";
-import { DecisionResponse, ProposedActionPayload } from "@/lib/types";
-
-const stageCount = 4;
 
 type ModeConsolePageProps = {
   mode: ConsoleMode;
 };
 
 export default function ModeConsolePage({ mode }: ModeConsolePageProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeStage, setActiveStage] = useState(-1);
-  const [result, setResult] = useState<DecisionResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [noticeVariant, setNoticeVariant] = useState<"warning" | "info" | "success">("info");
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
-
-  const startStageProgress = () => {
-    setActiveStage(0);
-    intervalRef.current = setInterval(() => {
-      setActiveStage((prev) => Math.min(stageCount - 1, prev + 1));
-    }, 600);
-  };
-
-  const stopStageProgress = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    setActiveStage(stageCount - 1);
-  };
-
-  const handleSubmit = async (payload: ProposedActionPayload) => {
-    try {
-      setError(null);
-      setResult(null);
-      setIsLoading(true);
-      startStageProgress();
-
-      const response = await submitProposedAction(payload);
-      stopStageProgress();
-      setResult(response);
-
-      const integration = String(payload.metadata.integration ?? "").toLowerCase();
-      const isCopilotIntegration =
-        integration.includes("copilot") || integration.includes("vscode");
-      const risk = response.risk_assessment?.overall_risk_score ?? 0;
-      const hasPolicyViolations = (response.policy_violations?.length ?? 0) > 0;
-
-      if (isCopilotIntegration && (response.decision === "BLOCK" || risk >= 0.65)) {
-        const message = `Copilot task flagged: ${response.decision}. Risk ${Math.round(
-          risk * 100
-        )}%. Review before applying changes.`;
-        setNoticeVariant("warning");
-        setNotice(message);
-        notifyBrowser(message);
-      } else if (isCopilotIntegration && hasPolicyViolations) {
-        const message = `Copilot task requires revision due to policy checks.`;
-        setNoticeVariant("info");
-        setNotice(message);
-        notifyBrowser(message);
-      } else if (isCopilotIntegration) {
-        const message = `Copilot task passed gate checks.`;
-        setNoticeVariant("success");
-        setNotice(message);
-      }
-    } catch (err) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      setActiveStage(-1);
-      setError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <AuthGate>
       <main className="grid-overlay min-h-screen">
@@ -107,41 +22,36 @@ export default function ModeConsolePage({ mode }: ModeConsolePageProps) {
             <SideNav />
 
             <div className="space-y-4" id="dashboard">
-              <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[1.05fr_1fr_1.15fr]">
-                <ProposedActionForm isLoading={isLoading} onSubmit={handleSubmit} />
-                <GateVisualization isLoading={isLoading} activeStage={activeStage} />
-                <DecisionOutputCard result={result} />
+              <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.88))] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">
+                  Console Overview
+                </p>
+                <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-3xl">
+                    <h2 className="text-3xl font-semibold tracking-tight text-slate-50">
+                      Monitor governed AI operations from one dashboard.
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-slate-300">
+                      The console now focuses on visibility across environments, integrations,
+                      auditability, and policy posture. Agent prompt and command review has been
+                      moved into a dedicated advisory page so operators can handle bot decisions in
+                      a purpose-built workflow.
+                    </p>
+                  </div>
+                  <a
+                    href="/advisory"
+                    className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-cyan-100 hover:border-cyan-300/50"
+                  >
+                    Open Advisory Review
+                  </a>
+                </div>
               </section>
 
               <ModePanels mode={mode} />
             </div>
           </section>
-
-          {error && <Toast message={error} onDismiss={() => setError(null)} />}
-          {notice && (
-            <Toast
-              message={notice}
-              variant={noticeVariant}
-              onDismiss={() => setNotice(null)}
-            />
-          )}
         </div>
       </main>
     </AuthGate>
   );
-}
-
-function notifyBrowser(message: string) {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission === "granted") {
-    new Notification("Decision Gate Alert", { body: message });
-    return;
-  }
-  if (Notification.permission === "default") {
-    void Notification.requestPermission().then((permission) => {
-      if (permission === "granted") {
-        new Notification("Decision Gate Alert", { body: message });
-      }
-    });
-  }
 }

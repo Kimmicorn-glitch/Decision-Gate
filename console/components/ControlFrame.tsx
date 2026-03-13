@@ -64,6 +64,7 @@ export function TopControlBar({ mode }: ControlFrameProps) {
 export function SideNav() {
   const items = [
     { label: "Dashboard", href: "#dashboard" },
+    { label: "Advisory Review", href: "/advisory" },
     { label: "Active Agents", href: "#agents" },
     { label: "Bot Tracking", href: "/bots" },
     { label: "Policies", href: "/policies" },
