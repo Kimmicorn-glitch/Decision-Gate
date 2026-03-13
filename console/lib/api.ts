@@ -159,12 +159,16 @@ export async function registerAdmin(
   payload: RegisterRequest
 ): Promise<void> {
   const baseUrl = resolveApiBaseUrl();
+  const headers: Record<string, string> = {
+    "content-type": "application/json"
+  };
+  if (token.trim()) {
+    headers.authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${baseUrl}/auth/register`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`
-    },
+    headers,
     body: JSON.stringify(payload)
   });
 

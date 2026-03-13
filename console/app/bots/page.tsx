@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import AuthGate from "@/components/AuthGate";
 import Header from "@/components/Header";
 import { fetchMonitorOverview, fetchRegisteredIntegrations } from "@/lib/api";
 import { IntegrationRegistration, MonitorOverviewResponse } from "@/lib/types";
@@ -14,6 +15,11 @@ export default function BotsDashboardPage() {
   const [typeFilter, setTypeFilter] = useState("ALL");
 
   useEffect(() => {
+    if (!localStorage.getItem("adg_admin_token")) {
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
     const load = async () => {
       const [overviewRes, registeredRes] = await Promise.all([
@@ -49,9 +55,10 @@ export default function BotsDashboardPage() {
   );
 
   return (
-    <main className="grid-overlay min-h-screen">
-      <div className="mx-auto max-w-[1500px] px-4 py-6 md:px-8">
-        <Header />
+    <AuthGate>
+      <main className="grid-overlay min-h-screen">
+        <div className="mx-auto max-w-[1500px] px-4 py-6 md:px-8">
+          <Header />
 
         <section className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center gap-3">
@@ -237,8 +244,9 @@ export default function BotsDashboardPage() {
             )}
           </ul>
         </Panel>
-      </div>
-    </main>
+        </div>
+      </main>
+    </AuthGate>
   );
 }
 

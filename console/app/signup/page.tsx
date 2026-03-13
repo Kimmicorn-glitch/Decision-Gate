@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Header from "@/components/Header";
 import Toast from "@/components/Toast";
-import { loginAdmin } from "@/lib/api";
+import { registerAdmin } from "@/lib/api";
 
 function validateUsername(value: string): string | null {
   if (!/^[a-zA-Z0-9_-]{3,32}$/.test(value)) {
@@ -26,19 +26,13 @@ function validatePassword(value: string): string | null {
   return null;
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("created") === "1") {
-      setMessage("Admin account created. Sign in to open the console.");
-    }
-  }, []);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -56,16 +50,19 @@ export default function LoginPage() {
       return;
     }
 
+    if (password !== confirmPassword) {
+      setMessage("Password confirmation does not match.");
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await loginAdmin({ username, password });
-      localStorage.setItem("adg_admin_token", response.token);
-      localStorage.setItem("adg_admin_expires", response.expires_at);
-      localStorage.setItem("adg_admin_username", response.username);
-      localStorage.setItem("adg_admin_role", response.role);
-      router.push("/console");
+      await registerAdmin("", { username, password, role: "admin" });
+      router.push("/login?created=1");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Login failed");
+      const fallback =
+        "Sign up is only available before the first account exists. Ask an admin to create your user in Settings.";
+      setMessage(err instanceof Error ? `${err.message} ${fallback}` : fallback);
     } finally {
       setLoading(false);
     }
@@ -77,18 +74,16 @@ export default function LoginPage() {
         <Header publicView />
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-slate-200">
-            Admin Login
+            Create First Admin
           </h2>
           <p className="mb-5 text-sm leading-7 text-slate-300">
-            Sign in to access the operational console. If this is a new installation, use{" "}
-            <Link className="text-cyan-300 hover:text-cyan-200" href="/signup">
-              Sign Up
-            </Link>{" "}
-            to create the first admin account.
+            Use this once to bootstrap a new installation. After the first admin exists, user
+            creation moves into the authenticated Settings page.
           </p>
+
           <form className="space-y-4" onSubmit={onSubmit}>
             <label className="block text-xs uppercase tracking-[0.12em] text-slate-300">
-              Username
+              Admin Username
               <input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
@@ -108,14 +103,33 @@ export default function LoginPage() {
               />
             </label>
 
+            <label className="block text-xs uppercase tracking-[0.12em] text-slate-300">
+              Confirm Password
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-white/15 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-300/60"
+                required
+              />
+            </label>
+
             <button
               type="submit"
               disabled={loading}
               className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-blue-50"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Creating..." : "Create admin account"}
             </button>
           </form>
+
+          <p className="mt-5 text-sm text-slate-400">
+            Already have an account?{" "}
+            <Link className="text-cyan-300 hover:text-cyan-200" href="/login">
+              Login here
+            </Link>
+            .
+          </p>
         </section>
       </div>
 

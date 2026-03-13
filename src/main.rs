@@ -113,6 +113,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_headers(Any);
 
     let app = Router::new()
+        .route("/", get(handle_root))
+        .route("/healthz", get(handle_health))
+        .route("/readyz", get(handle_health))
         .route("/proposed-action", post(handle_proposed_action))
         .route("/proposed-action", options(handle_preflight))
         .route("/validate-action", post(handle_proposed_action))
@@ -162,6 +165,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn handle_root() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "service": "agent-decision-gate",
+            "status": "ok"
+        })),
+    )
+}
+
+async fn handle_health() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "ok"
+        })),
+    )
 }
 
 async fn handle_proposed_action(

@@ -9,7 +9,7 @@ type ControlFrameProps = {
 };
 
 const modeOptions: { id: ConsoleMode; label: string; href: string }[] = [
-  { id: "DEVOPS", label: "DevOps", href: "/devops" },
+  { id: "DEVOPS", label: "DevOps", href: "/console" },
   { id: "ENTERPRISE", label: "Enterprise", href: "/enterprise" },
   { id: "DATACENTER", label: "Data Center", href: "/datacenter" }
 ];
@@ -66,7 +66,7 @@ export function SideNav() {
     { label: "Dashboard", href: "#dashboard" },
     { label: "Active Agents", href: "#agents" },
     { label: "Bot Tracking", href: "/bots" },
-    { label: "Policies", href: "#policies" },
+    { label: "Policies", href: "/policies" },
     { label: "Decision Logs", href: "/audit" },
     { label: "Integrations", href: "#integrations" },
     { label: "Settings", href: "/settings" }

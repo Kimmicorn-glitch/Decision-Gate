@@ -1,0 +1,10 @@
+.git
+.github
+target
+console/node_modules
+console/.next
+console/out
+data
+.env
+.env.*
+console/.env.local

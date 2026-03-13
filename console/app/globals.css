@@ -15,7 +15,7 @@ body {
   min-height: 100vh;
   background-color: #020617;
   color: #dbe8ff;
-  font-family: Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   background-image:
     radial-gradient(circle at 20% 20%, rgba(30, 64, 175, 0.2), transparent 40%),
     radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.2), transparent 40%);

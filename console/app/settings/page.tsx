@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import AuthGate from "@/components/AuthGate";
 import Header from "@/components/Header";
 import Toast from "@/components/Toast";
 import {
@@ -252,9 +253,10 @@ export default function SettingsPage() {
   }, [role]);
 
   return (
-    <main className="grid-overlay min-h-screen">
-      <div className="mx-auto max-w-[1100px] px-4 py-6 md:px-8">
-        <Header />
+    <AuthGate>
+      <main className="grid-overlay min-h-screen">
+        <div className="mx-auto max-w-[1100px] px-4 py-6 md:px-8">
+          <Header />
 
         <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-xl">
           <div className="flex items-center justify-between">
@@ -535,10 +537,11 @@ export default function SettingsPage() {
             )}
           </form>
         </section>
-      </div>
+        </div>
 
-      {notice && <Toast message={notice} onDismiss={() => setNotice(null)} />}
-      {error && <Toast message={error} onDismiss={() => setError(null)} />}
-    </main>
+        {notice && <Toast message={notice} onDismiss={() => setNotice(null)} />}
+        {error && <Toast message={error} onDismiss={() => setError(null)} />}
+      </main>
+    </AuthGate>
   );
 }

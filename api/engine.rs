@@ -535,6 +535,7 @@ fn assess_risk(
         "jailbreak",
         "bypass guardrail",
         "disable policy",
+        "disable logging",
         "prompt injection",
         "reveal secret",
         "exfiltrate",
@@ -550,6 +551,12 @@ fn assess_risk(
     }
 
     let output_safety_patterns = [
+        "backdoor",
+        "malicious bug",
+        "malware",
+        "ransomware",
+        "evade detection",
+        "avoid detection",
         "delete production",
         "drop database",
         "rm -rf",

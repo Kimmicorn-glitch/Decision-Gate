@@ -1,0 +1,148 @@
+name: Deploy Decision Gate API (Azure Container Apps)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "agents/**"
+      - "api/**"
+      - "governance/**"
+      - "mcp/**"
+      - "config/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "infra/containerapp.yaml"
+      - ".github/workflows/azure-container-apps-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_CORE_OUTPUT: none
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run backend tests
+        run: cargo test
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and deploy container app
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}
+          acrName: ${{ vars.ACR_NAME }}
+          containerAppName: ${{ vars.AZURE_CONTAINER_APP_NAME }}
+          containerAppEnvironment: ${{ vars.AZURE_CONTAINERAPPS_ENVIRONMENT }}
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+          imageToBuild: ${{ vars.ACR_NAME }}.azurecr.io/agent-decision-gate:${{ github.sha }}
+          dockerfilePath: Dockerfile
+          targetPort: 8080
+          ingress: external
+          disableTelemetry: true
+
+      - name: Apply runtime secrets and env vars
+        uses: azure/cli@v2
+        env:
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          TENANT_ENCRYPTION_KEY: ${{ secrets.TENANT_ENCRYPTION_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          MCP_BASE_URL: ${{ secrets.MCP_BASE_URL }}
+          COSMOS_ENDPOINT: ${{ secrets.COSMOS_ENDPOINT }}
+          COSMOS_DATABASE: ${{ secrets.COSMOS_DATABASE }}
+          COSMOS_CONTAINER: ${{ secrets.COSMOS_CONTAINER }}
+          COSMOS_KEY: ${{ secrets.COSMOS_KEY }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            set -euo pipefail
+
+            secret_args=()
+
+            append_secret() {
+              local name="$1"
+              local value="$2"
+              if [ -n "$value" ]; then
+                secret_args+=("${name}=${value}")
+              fi
+            }
+
+            append_secret admin-username "${ADMIN_USERNAME}"
+            append_secret admin-password "${ADMIN_PASSWORD}"
+            append_secret tenant-encryption-key "${TENANT_ENCRYPTION_KEY}"
+            append_secret sentry-dsn "${SENTRY_DSN}"
+            append_secret mcp-base-url "${MCP_BASE_URL}"
+            append_secret cosmos-endpoint "${COSMOS_ENDPOINT}"
+            append_secret cosmos-database "${COSMOS_DATABASE}"
+            append_secret cosmos-container "${COSMOS_CONTAINER}"
+            append_secret cosmos-key "${COSMOS_KEY}"
+
+            if [ "${#secret_args[@]}" -gt 0 ]; then
+              az containerapp secret set \
+                --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+                --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+                --secrets "${secret_args[@]}"
+            fi
+
+            env_args=(
+              "BIND_ADDR=0.0.0.0:8080"
+              "RUST_LOG=info"
+              "MCP_LOGGING_PATH=/api/mcp/log-decision"
+              "ADMIN_USERS_FILE=/app/data/admin_users.json"
+              "TENANT_SETTINGS_FILE=/app/data/tenant_settings.sec.json"
+              "RUNTIME_MONITOR_INTERVAL_SECS=${{ vars.RUNTIME_MONITOR_INTERVAL_SECS || '15' }}"
+              "SENTRY_ENVIRONMENT=${{ vars.SENTRY_ENVIRONMENT || 'production' }}"
+              "SENTRY_TRACES_SAMPLE_RATE=${{ vars.SENTRY_TRACES_SAMPLE_RATE || '0.2' }}"
+              "SENTRY_CPU_ALERT_THRESHOLD=${{ vars.SENTRY_CPU_ALERT_THRESHOLD || '85' }}"
+              "SENTRY_MEMORY_ALERT_MB=${{ vars.SENTRY_MEMORY_ALERT_MB || '2048' }}"
+            )
+
+            append_env_secret_ref() {
+              local env_name="$1"
+              local secret_name="$2"
+              local raw_value="$3"
+              if [ -n "$raw_value" ]; then
+                env_args+=("${env_name}=secretref:${secret_name}")
+              fi
+            }
+
+            append_env_secret_ref ADMIN_USERNAME admin-username "${ADMIN_USERNAME}"
+            append_env_secret_ref ADMIN_PASSWORD admin-password "${ADMIN_PASSWORD}"
+            append_env_secret_ref TENANT_ENCRYPTION_KEY tenant-encryption-key "${TENANT_ENCRYPTION_KEY}"
+            append_env_secret_ref SENTRY_DSN sentry-dsn "${SENTRY_DSN}"
+            append_env_secret_ref MCP_BASE_URL mcp-base-url "${MCP_BASE_URL}"
+            append_env_secret_ref COSMOS_ENDPOINT cosmos-endpoint "${COSMOS_ENDPOINT}"
+            append_env_secret_ref COSMOS_DATABASE cosmos-database "${COSMOS_DATABASE}"
+            append_env_secret_ref COSMOS_CONTAINER cosmos-container "${COSMOS_CONTAINER}"
+            append_env_secret_ref COSMOS_KEY cosmos-key "${COSMOS_KEY}"
+
+            az containerapp update \
+              --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --min-replicas "${{ vars.CONTAINER_APP_MIN_REPLICAS || '1' }}" \
+              --max-replicas "${{ vars.CONTAINER_APP_MAX_REPLICAS || '3' }}" \
+              --set-env-vars "${env_args[@]}"

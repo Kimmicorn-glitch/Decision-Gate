@@ -5,3 +5,4 @@ console/node_modules
 console/.next
 console/out
 *.log
+data/

@@ -22,6 +22,8 @@ cargo run
 Backend defaults:
 
 - Base URL: `http://localhost:8080`
+- Health: `GET /healthz`
+- Ready: `GET /readyz`
 - Decision endpoint: `POST /proposed-action`
 - Audit endpoint: `GET /audit`
 - Monitor endpoint: `GET /monitor/overview`

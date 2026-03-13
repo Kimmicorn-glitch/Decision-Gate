@@ -92,6 +92,7 @@ Open:
 - Console: `http://localhost:3000`
 - Login: `http://localhost:3000/login`
 - API: `http://localhost:8080`
+- Health: `http://localhost:8080/healthz`
 
 ## Key API Endpoints
 
@@ -137,6 +138,19 @@ Set these environment variables on backend:
 - `config/` policies + model router
 - `console/` Next.js operator dashboard
 - `infra/` deployment manifests/docs
+
+## GitHub to Azure
+
+The repo includes deployment workflows for Azure:
+
+- Backend API to Azure Container Apps:
+  [.github/workflows/azure-container-apps-api.yml](/home/wtc/Music/Decision-Gate/.github/workflows/azure-container-apps-api.yml)
+- Frontend console to Azure Static Web Apps:
+  [.github/workflows/azure-static-web-apps-console.yml](/home/wtc/Music/Decision-Gate/.github/workflows/azure-static-web-apps-console.yml)
+- CI validation:
+  [.github/workflows/ci.yml](/home/wtc/Music/Decision-Gate/.github/workflows/ci.yml)
+
+For setup details, see [infra/deployment.md](/home/wtc/Music/Decision-Gate/infra/deployment.md) and [console/DEPLOYMENT.md](/home/wtc/Music/Decision-Gate/console/DEPLOYMENT.md).
 
 ## Additional Runbook
 

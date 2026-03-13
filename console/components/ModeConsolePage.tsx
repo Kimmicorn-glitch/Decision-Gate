@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import AuthGate from "@/components/AuthGate";
 import { SideNav, TopControlBar } from "@/components/ControlFrame";
 import DecisionOutputCard from "@/components/DecisionOutputCard";
 import GateVisualization from "@/components/GateVisualization";
@@ -96,35 +97,37 @@ export default function ModeConsolePage({ mode }: ModeConsolePageProps) {
   };
 
   return (
-    <main className="grid-overlay min-h-screen">
-      <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8">
-        <Header />
-        <TopControlBar mode={mode} />
+    <AuthGate>
+      <main className="grid-overlay min-h-screen">
+        <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8">
+          <Header />
+          <TopControlBar mode={mode} />
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[260px_1fr]">
-          <SideNav />
+          <section className="grid grid-cols-1 gap-6 xl:grid-cols-[260px_1fr]">
+            <SideNav />
 
-          <div className="space-y-4" id="dashboard">
-            <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[1.05fr_1fr_1.15fr]">
-              <ProposedActionForm isLoading={isLoading} onSubmit={handleSubmit} />
-              <GateVisualization isLoading={isLoading} activeStage={activeStage} />
-              <DecisionOutputCard result={result} />
-            </section>
+            <div className="space-y-4" id="dashboard">
+              <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[1.05fr_1fr_1.15fr]">
+                <ProposedActionForm isLoading={isLoading} onSubmit={handleSubmit} />
+                <GateVisualization isLoading={isLoading} activeStage={activeStage} />
+                <DecisionOutputCard result={result} />
+              </section>
 
-            <ModePanels mode={mode} />
-          </div>
-        </section>
+              <ModePanels mode={mode} />
+            </div>
+          </section>
 
-        {error && <Toast message={error} onDismiss={() => setError(null)} />}
-        {notice && (
-          <Toast
-            message={notice}
-            variant={noticeVariant}
-            onDismiss={() => setNotice(null)}
-          />
-        )}
-      </div>
-    </main>
+          {error && <Toast message={error} onDismiss={() => setError(null)} />}
+          {notice && (
+            <Toast
+              message={notice}
+              variant={noticeVariant}
+              onDismiss={() => setNotice(null)}
+            />
+          )}
+        </div>
+      </main>
+    </AuthGate>
   );
 }
 

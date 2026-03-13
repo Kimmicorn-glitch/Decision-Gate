@@ -1,44 +1,48 @@
 # Azure Static Web Apps Deployment
 
-## 1. Install and run locally
+The console is a static Next.js export and deploys through:
 
-```bash
-cd console
-npm install
-npm run dev
-```
+- [.github/workflows/azure-static-web-apps-console.yml](/home/wtc/Music/Decision-Gate/.github/workflows/azure-static-web-apps-console.yml)
 
-Generate static artifacts:
+## Required GitHub configuration
 
-```bash
-npm run build
-```
-
-## 2. Configure environment variable
-
-In Azure Static Web Apps application settings, set:
-
-- `NEXT_PUBLIC_API_URL` = `https://<decision-gate-api-host>`
-
-## 3. GitHub Action deployment (recommended)
-
-Create an Azure Static Web App and set:
-
-- App location: `console`
-- Output location: `out`
-- API location: empty (use external Rust backend)
-- App build command: `npm run build`
-- Workflow file: `.github/workflows/azure-static-web-apps-console.yml`
-
-Required GitHub repository secrets:
+GitHub `Secrets`:
 
 - `AZURE_STATIC_WEB_APPS_API_TOKEN`
 - `NEXT_PUBLIC_API_URL`
 
-## 4. Static Web App routing config
+`NEXT_PUBLIC_API_URL` must point to the deployed backend API, for example:
 
-`console/staticwebapp.config.json` is included for headers and fallback behavior.
+```text
+https://decision-gate-api.<region>.azurecontainerapps.io
+```
 
-## 5. Backend CORS
+## Azure Static Web Apps settings
 
-Allow your Static Web App origin on the Rust API so `POST /proposed-action` and `GET /audit` can be called from browser clients.
+When creating the Static Web App, use:
+
+- App location: `console`
+- Output location: `out`
+- API location: leave empty
+- Build command: `npm run build`
+
+## What the workflow does
+
+1. Installs dependencies with `npm ci`
+2. Builds the static export
+3. Uploads `console/out` to Azure Static Web Apps
+4. Manages preview environments for pull requests
+
+## Routing and headers
+
+Routing and browser security headers are defined in:
+
+- [console/staticwebapp.config.json](/home/wtc/Music/Decision-Gate/console/staticwebapp.config.json)
+
+## Local verification
+
+```bash
+cd console
+npm ci
+NEXT_PUBLIC_API_URL=http://localhost:8080 npm run build
+```
