@@ -37,16 +37,10 @@ export default function HomePage() {
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href="/login"
+                  href="/console"
                   className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-blue-50"
                 >
-                  Login
-                </Link>
-                <Link
-                  href="/signup"
-                  className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-slate-100"
-                >
-                  Sign Up
+                  Open Console
                 </Link>
               </div>
             </div>

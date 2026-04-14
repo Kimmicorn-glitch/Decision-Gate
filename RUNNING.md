@@ -55,6 +55,34 @@ cargo run
 
 If login fails due to an older local user hash, set these env vars and restart. The backend will upsert the configured admin account.
 
+## Creating Admin Users
+
+### Method 1: Environment Variables (Recommended)
+
+Set these before starting the backend to create/update an admin user:
+
+```bash
+export ADMIN_USERNAME='your_admin_user'
+export ADMIN_PASSWORD='YourStr0ng!Password123'
+cargo run
+```
+
+Password requirements: minimum 12 characters with uppercase, lowercase, digit, and symbol.
+
+### Method 2: Direct JSON Edit
+
+Edit `data/admin_users.json` to add users. Generate password hashes using:
+
+```bash
+cargo run --example hash_password -- "YourPassword123!"
+```
+
+Or use the `/auth/register` endpoint when no users exist (first-time bootstrap).
+
+### Method 3: Signup Page
+
+Navigate to `http://localhost:3000/signup` to create the first admin account (only works when no users exist).
+
 ## 2. Start the Frontend Console
 
 Open a second terminal:

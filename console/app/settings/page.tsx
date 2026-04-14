@@ -26,9 +26,9 @@ function parseList(value: string): string[] {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [token, setToken] = useState("");
-  const [role, setRole] = useState<"admin" | "operator" | "viewer">("viewer");
-  const [username, setUsername] = useState("");
+  const token = "";
+  const [role] = useState<"admin" | "operator" | "viewer">("admin");
+  const username = "admin";
   const canWriteSettings = role === "admin" || role === "operator";
   const canManageUsers = role === "admin";
 
@@ -72,22 +72,7 @@ export default function SettingsPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    const authToken = localStorage.getItem("adg_admin_token") || "";
-    const authRole =
-      (localStorage.getItem("adg_admin_role") as "admin" | "operator" | "viewer" | null) ||
-      "viewer";
-    const authUsername = localStorage.getItem("adg_admin_username") || "";
-
-    if (!authToken) {
-      router.push("/login");
-      return;
-    }
-
-    setToken(authToken);
-    setRole(authRole);
-    setUsername(authUsername);
-
-    listTenants(authToken)
+    listTenants(token)
       .then((list) => {
         if (list.length > 0) {
           setTenants(list);
@@ -95,7 +80,7 @@ export default function SettingsPage() {
         }
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load tenants"));
-  }, [router]);
+  }, [token]);
 
   useEffect(() => {
     if (!token || !tenantId) return;

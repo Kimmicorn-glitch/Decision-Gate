@@ -15,11 +15,6 @@ export default function AuditPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!localStorage.getItem("adg_admin_token")) {
-      setIsLoading(false);
-      return;
-    }
-
     const load = async () => {
       try {
         setIsLoading(true);

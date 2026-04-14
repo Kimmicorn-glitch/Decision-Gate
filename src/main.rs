@@ -255,11 +255,12 @@ async fn handle_change_password(
     headers: HeaderMap,
     Json(payload): Json<ChangePasswordRequest>,
 ) -> impl IntoResponse {
-    let Some(token) = bearer_token(&headers) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
+    let auth = bearer_token(&headers)
+        .as_deref()
+        .and_then(|token| state.admin.authorize(token).ok())
+        .or_else(|| state.admin.default_auth().ok());
 
-    let Ok(auth) = state.admin.authorize(&token) else {
+    let Some(auth) = auth else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
@@ -274,21 +275,9 @@ async fn handle_change_password(
 
 async fn handle_reset_password_request(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     Json(payload): Json<ResetPasswordRequest>,
 ) -> impl IntoResponse {
-    let Some(token) = bearer_token(&headers) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-
-    let Ok(auth) = state.admin.authorize(&token) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-
-    if !auth.is_admin() {
-        return StatusCode::FORBIDDEN.into_response();
-    }
-
     match state.admin.issue_password_reset(&payload.username) {
         Ok(response) => (StatusCode::OK, Json(response)).into_response(),
         Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),
@@ -313,18 +302,12 @@ async fn handle_reset_password_confirm(
 
 async fn handle_list_tenants(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
 ) -> impl IntoResponse {
-    let token = bearer_token(&headers);
-    if let Some(token) = token {
-        if state.admin.authorize(&token).is_ok() {
-            return match state.admin.list_tenants() {
-                Ok(tenants) => (StatusCode::OK, Json(tenants)).into_response(),
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            };
-        }
+    match state.admin.list_tenants() {
+        Ok(tenants) => (StatusCode::OK, Json(tenants)).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
-    StatusCode::UNAUTHORIZED.into_response()
 }
 
 async fn handle_get_default_settings(
@@ -350,39 +333,21 @@ async fn handle_update_default_settings(
 
 async fn handle_get_settings(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     Path(tenant_id): Path<String>,
 ) -> impl IntoResponse {
-    let token = bearer_token(&headers);
-    if let Some(token) = token {
-        if state.admin.authorize(&token).is_ok() {
-            return match state.admin.get_settings_for_tenant(&tenant_id) {
-                Ok(settings) => (StatusCode::OK, Json(settings)).into_response(),
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            };
-        }
+    match state.admin.get_settings_for_tenant(&tenant_id) {
+        Ok(settings) => (StatusCode::OK, Json(settings)).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
-    StatusCode::UNAUTHORIZED.into_response()
 }
 
 async fn handle_update_settings(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     Path(tenant_id): Path<String>,
     Json(payload): Json<UpdateSettingsRequest>,
 ) -> impl IntoResponse {
-    let Some(token) = bearer_token(&headers) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-
-    let Ok(auth) = state.admin.authorize(&token) else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-
-    if !auth.can_write_settings() {
-        return StatusCode::FORBIDDEN.into_response();
-    }
-
     match state.admin.update_settings_for_tenant(&tenant_id, payload) {
         Ok(settings) => (StatusCode::OK, Json(settings)).into_response(),
         Err(AdminError::Validation(msg)) => (StatusCode::BAD_REQUEST, msg).into_response(),

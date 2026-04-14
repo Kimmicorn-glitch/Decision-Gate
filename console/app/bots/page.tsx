@@ -15,11 +15,6 @@ export default function BotsDashboardPage() {
   const [typeFilter, setTypeFilter] = useState("ALL");
 
   useEffect(() => {
-    if (!localStorage.getItem("adg_admin_token")) {
-      setLoading(false);
-      return;
-    }
-
     let mounted = true;
     const load = async () => {
       const [overviewRes, registeredRes] = await Promise.all([

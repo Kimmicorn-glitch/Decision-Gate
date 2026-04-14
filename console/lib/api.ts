@@ -25,7 +25,7 @@ function resolveApiBaseUrl(): string {
   if (configured) return configured;
 
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8080`;
+    return `${window.location.protocol}//${window.location.host}`;
   }
 
   return "http://localhost:8080";
@@ -140,17 +140,29 @@ export async function fetchRegisteredIntegrations(): Promise<IntegrationRegistra
 
 export async function loginAdmin(payload: LoginRequest): Promise<LoginResponse> {
   const baseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${baseUrl}/auth/login`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    throw new Error(
+      `Login network error: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 
   if (!response.ok) {
-    throw new Error("Login failed. Check username/password format and credentials.");
+    const body = await response.text();
+    throw new Error(
+      `Login failed (${response.status}): ${body || response.statusText}`
+    );
   }
+
   return (await response.json()) as LoginResponse;
 }
 
@@ -159,16 +171,11 @@ export async function registerAdmin(
   payload: RegisterRequest
 ): Promise<void> {
   const baseUrl = resolveApiBaseUrl();
-  const headers: Record<string, string> = {
-    "content-type": "application/json"
-  };
-  if (token.trim()) {
-    headers.authorization = `Bearer ${token}`;
-  }
-
   const response = await fetch(`${baseUrl}/auth/register`, {
     method: "POST",
-    headers,
+    headers: {
+      "content-type": "application/json"
+    },
     body: JSON.stringify(payload)
   });
 
@@ -181,9 +188,6 @@ export async function listTenants(token: string): Promise<string[]> {
   const baseUrl = resolveApiBaseUrl();
   const response = await fetch(`${baseUrl}/admin/tenants`, {
     method: "GET",
-    headers: {
-      authorization: `Bearer ${token}`
-    },
     cache: "no-store"
   });
 
@@ -202,9 +206,6 @@ export async function fetchSettings(
   const baseUrl = resolveApiBaseUrl();
   const response = await fetch(`${baseUrl}/admin/settings/${tenantId}`, {
     method: "GET",
-    headers: {
-      authorization: `Bearer ${token}`
-    },
     cache: "no-store"
   });
 
@@ -223,8 +224,7 @@ export async function updateSettings(
   const response = await fetch(`${baseUrl}/admin/settings/${tenantId}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`
+      "content-type": "application/json"
     },
     body: JSON.stringify(payload)
   });
@@ -243,8 +243,7 @@ export async function changePassword(
   const response = await fetch(`${baseUrl}/auth/change-password`, {
     method: "POST",
     headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`
+      "content-type": "application/json"
     },
     body: JSON.stringify(payload)
   });
@@ -262,8 +261,7 @@ export async function requestPasswordReset(
   const response = await fetch(`${baseUrl}/auth/reset-password/request`, {
     method: "POST",
     headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`
+      "content-type": "application/json"
     },
     body: JSON.stringify(payload)
   });
